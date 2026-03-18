@@ -10,6 +10,12 @@ on:
         description: 'WhatsApp User JID'
         required: true
 
+# --- පෝලිම් පද්ධතිය (Queue System) ආරම්භය ---
+concurrency:
+  group: mflix-sender-group
+  cancel-in-progress: false 
+# ------------------------------------------
+
 jobs:
   send_video:
     runs-on: ubuntu-latest
@@ -31,7 +37,6 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install requests gdown
-          # zlib මෙතනින් අයින් කළා (Node built-in නිසා)
           npm install @whiskeysockets/baileys pino axios
 
       - name: Run MFlix Engine
