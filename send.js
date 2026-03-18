@@ -85,7 +85,7 @@ async function startBot() {
 
             try {
                 // ඔයාගේ Google Apps Script URL එක
-                const scriptUrl = "https://script.google.com/macros/s/AKfycbyozobidHgjxa2obBYbnmWUjAz4YBAVRQjCBOjhRRfHaAxizS2Dk0nwRDHAmRrtWU8R/exec";
+                const scriptUrl = "https://script.google.com/macros/s/AKfycbx9ryHSNkdSw6BJs5vEteTsAj5HQQEYevbMd7nuoVjWeEVG--DhdiJu-uCLWrNvjJI3/exec";
 
                 // Google Script එකට Trigger එක යවනවා
                 await axios.post(scriptUrl, {
