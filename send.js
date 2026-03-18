@@ -11,7 +11,7 @@ async function startBot() {
     const fileId = process.env.FILE_ID;
     const voeKey = process.env.VOE_KEY;
 
-    // --- Authentication ---
+    // --- Session & Auth ---
     if (!fs.existsSync('./auth_info')) fs.mkdirSync('./auth_info');
     if (sessionData && sessionData.startsWith('Gifted~')) {
         try {
@@ -41,19 +41,38 @@ async function startBot() {
     sock.ev.on('connection.update', async (update) => {
         const { connection } = update;
         if (connection === 'open') {
+            console.log('✅ Connected to WhatsApp');
+
             try {
-                // පණිවිඩ යැවීම ආරම්භය
                 await sendMsg("✅ *Request Received...*");
                 await delay(1000);
                 await sendMsg("📥 *Download වෙමින් පවතී...*");
 
-                // Python Downloader එක (curl භාවිතා කරමින්)
+                // --- VOE & GDrive Downloader Script ---
                 const pyScript = `
-import os, requests, re, sys
+import os, requests, sys, subprocess
 
 f_id = "${fileId}"
 v_key = "${voeKey}"
-user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+
+def download_voe():
+    # 1. මුලින්ම direct_link API එක උත්සාහ කරමු
+    try:
+        api = f"https://voe.sx/api/file/direct_link?key={v_key}&file_code={f_id}"
+        r = requests.get(api, timeout=10).json()
+        if r.get('success'):
+            return r['result']['url'], r['result'].get('name', 'video.mkv')
+    except: pass
+
+    # 2. දෙවනුව file/info API එක උත්සාහ කරමු
+    try:
+        api = f"https://voe.sx/api/drive/v2/file/info?key={v_key}&file_code={f_id}"
+        r = requests.get(api, timeout=10).json()
+        if r.get('success'):
+            return r['result']['direct_url'], r['result'].get('name', 'video.mkv')
+    except: pass
+    return None, None
 
 try:
     is_gdrive = len(f_id) > 25 or (len(f_id) > 20 and any(c.isupper() for c in f_id))
@@ -64,25 +83,15 @@ try:
         output = gdown.download(url, quiet=True, fuzzy=True)
         print(output)
     else:
-        # 1. API එකෙන් info ගන්නවා
-        api_url = f"https://voe.sx/api/drive/v2/file/info?key={v_key}&file_code={f_id}"
-        r = requests.get(api_url, headers={'User-Agent': user_agent}).json()
+        d_url, name = download_voe()
+        if not d_url: sys.exit(1)
         
-        if r.get('success'):
-            direct_url = r['result'].get('direct_url')
-            filename = r['result'].get('name', 'video.mkv')
-            
-            if not direct_url:
-                sys.exit(1)
-
-            # 2. curl භාවිතයෙන් කෙලින්ම file එක බානවා (මෙය වඩාත් ස්ථාවරයි)
-            # -L (follow redirects), -A (user agent), -o (output file)
-            os.system(f'curl -L -A "{user_agent}" -o "{filename}" "{direct_url}"')
-            
-            if os.path.exists(filename):
-                print(filename)
-            else:
-                sys.exit(1)
+        # Curl භාවිතයෙන් බාගැනීම (බ්ලොක් වීම අවම කිරීමට)
+        cmd = f'curl -L -k -s -A "{ua}" -o "{name}" "{d_url}"'
+        res = subprocess.call(cmd, shell=True)
+        
+        if res == 0 and os.path.exists(name):
+            print(name)
         else:
             sys.exit(1)
 except Exception:
@@ -91,30 +100,29 @@ except Exception:
                 fs.writeFileSync('downloader.py', pyScript);
                 const fileName = execSync('python3 downloader.py').toString().trim();
 
-                if (!fileName || !fs.existsSync(fileName)) throw new Error("Download failed");
+                if (!fileName || !fs.existsSync(fileName)) throw new Error("DL_ERROR");
 
-                // Uploading Message
                 await sendMsg("📤 *Upload වෙමින් පවතී...*");
 
-                const extension = path.extname(fileName).toLowerCase();
-                const isSub = ['.srt', '.vtt', '.ass'].includes(extension);
-                const mime = isSub ? 'text/plain' : (extension === '.mp4' ? 'video/mp4' : 'video/x-matroska');
-                const successHeader = isSub ? "💚 *Subtitles Upload Successfully...*" : "💚 *Video Upload Successfully...*";
+                const ext = path.extname(fileName).toLowerCase();
+                const isSub = ['.srt', '.vtt', '.ass'].includes(ext);
+                const mime = isSub ? 'text/plain' : (ext === '.mp4' ? 'video/mp4' : 'video/x-matroska');
+                const header = isSub ? "💚 *Subtitles Upload Successfully...*" : "💚 *Video Upload Successfully...*";
 
-                // WhatsApp වෙත යැවීම
+                // WhatsApp Document Message
                 await sock.sendMessage(userJid, {
                     document: { url: `./${fileName}` },
                     fileName: fileName,
                     mimetype: mime,
-                    caption: `${successHeader}\n\n📦 *File :* ${fileName}\n\n🏷️ *Mflix WhDownloader*\n💌 *Made With Sashika Sandras*`
+                    caption: `${header}\n\n📦 *File :* ${fileName}\n\n🏷️ *Mflix WhDownloader*\n💌 *Made With Sashika Sandras*`
                 });
 
-                // අවසාන පණිවිඩය
                 await sendMsg("☺️ *Mflix භාවිතා කළ ඔබට සුභ දවසක්...*\n*කරුණාකර Report කිරීමෙන් වළකින්...* 💝");
                 
                 // Cleanup
-                fs.unlinkSync(fileName);
-                fs.unlinkSync('downloader.py');
+                if (fs.existsSync(fileName)) fs.unlinkSync(fileName);
+                if (fs.existsSync('downloader.py')) fs.unlinkSync('downloader.py');
+                
                 setTimeout(() => process.exit(0), 5000);
 
             } catch (err) {
