@@ -1,0 +1,14 @@
+{
+  "name": "mflix-file-sender",
+  "version": "1.0.0",
+  "main": "send.js",
+  "scripts": {
+    "start": "node send.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "axios": "latest",
+    "pino": "latest",
+    "qrcode-terminal": "latest"
+  }
+}
