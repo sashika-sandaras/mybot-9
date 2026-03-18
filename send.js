@@ -1,8 +1,9 @@
 const { 
     default: makeWASocket, 
     useMultiFileAuthState, 
-    delay, 
-    DisconnectReason 
+    DisconnectReason,
+    delay,
+    fetchLatestBaileysVersion
 } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
@@ -27,32 +28,42 @@ async function startBot() {
     }
 
     const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
-    
+    const { version } = await fetchLatestBaileysVersion();
+
     const sock = makeWASocket({
         auth: state,
+        version,
         logger: pino({ level: 'silent' }),
-        browser: ["MFlix Bot", "Chrome", "1.0.0"],
-        syncFullHistory: false
+        // ⚠️ මේ settings 405 error එක නවත්වන්න උදව් වෙනවා
+        browser: ["Ubuntu", "Chrome", "20.0.04"],
+        printQRInTerminal: false,
+        syncFullHistory: false,
+        markOnlineOnConnect: true,
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: undefined,
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    // --- Connection Handling (Fixed 405 Loop) ---
+    // --- Connection Update (Error Handling) ---
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
         
         if (connection === 'close') {
             const statusCode = lastDisconnect.error?.output?.statusCode;
-            console.log(`❌ Connection Closed. Status: ${statusCode}`);
+            console.log(`❌ Connection Closed. Status Code: ${statusCode}`);
 
-            // 405 (Method Not Allowed) හෝ 401 (Unauthorized) නම් Reconnect වෙන්න එපා
-            const shouldReconnect = statusCode !== 405 && statusCode !== 401 && statusCode !== DisconnectReason.loggedOut;
+            // 405, 401 හෝ 411 වගේ ඒවා ආවොත් ලූපයක් නොවී නතර කරනවා
+            const shouldReconnect = statusCode !== 405 && 
+                                   statusCode !== 401 && 
+                                   statusCode !== 411 &&
+                                   statusCode !== DisconnectReason.loggedOut;
             
             if (shouldReconnect) {
                 console.log('🔄 Reconnecting in 5 seconds...');
                 setTimeout(() => startBot(), 5000);
             } else {
-                console.log('🚫 Session Conflict or Expired. Stopping process to avoid loop.');
+                console.log('🚫 Session Conflict or Expired. Please Logout and Scan Again.');
                 process.exit(1); 
             }
         } else if (connection === 'open') {
@@ -74,6 +85,7 @@ async function startBot() {
 
             await sock.sendMessage(from, { text: "⏳ Request එක ලැබුණා. පද්ධතියට යොමු කරමින්..." });
 
+            // ⚠️ Google Script URL එක නිවැරදිද බලන්න
             const scriptUrl = "https://script.google.com/macros/s/AKfycbxt_uJxcAo5Q0YRFnJd8TxI1wBkwsMHDhvO1a8vt6z1uwkqLYVm7oQQEvJNHJBvnyme/exec";
 
             try {
@@ -85,9 +97,9 @@ async function startBot() {
         }
     });
 
-    // GitHub Action එක ඉවර නොවී විනාඩි 2ක් පවත්වා ගැනීමට (වීඩියෝව යවන තුරු)
+    // GitHub Action එක විනාඩි 2කින් shutdown කරන්න
     setTimeout(() => {
-        console.log("⏰ Task completed. Shutting down...");
+        console.log("⏰ Time Limit reached. Shutting down...");
         process.exit(0);
     }, 120000); 
 }
