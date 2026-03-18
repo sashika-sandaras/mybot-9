@@ -37,28 +37,32 @@ async function startBot() {
         browser: ["Ubuntu", "Chrome", "20.0.04"],
         syncFullHistory: false,
         markOnlineOnConnect: true,
+        connectTimeoutMs: 120000, // ලොකු ෆයිල් යැවීමට වෙලාව වැඩි කිරීම
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    // --- 2. වීඩියෝව යැවීමේ Function එක ---
+    // --- 2. වීඩියෝව Document එකක් ලෙස යැවීමේ Function එක ---
     async function sendDownloadedVideo(sock) {
-        const userJid = process.env.USER_JID; // GitHub Action එකෙන් එන JID එක
+        const userJid = process.env.USER_JID;
         const fileNameFile = 'filename.txt';
 
         if (fs.existsSync(fileNameFile)) {
             const videoFileName = fs.readFileSync(fileNameFile, 'utf-8').trim();
             
             if (fs.existsSync(videoFileName)) {
-                console.log(`🚀 Sending Video: ${videoFileName} to ${userJid}`);
+                console.log(`🚀 Sending Original File: ${videoFileName} to ${userJid}`);
                 
                 try {
+                    // Document එකක් ලෙස යැවීම (Original format එකෙන්ම යයි)
                     await sock.sendMessage(userJid, { 
-                        video: { url: `./${videoFileName}` }, 
-                        caption: `✅ ඔයා ඉල්ලපු වීඩියෝව මෙන්න!\n\n📂 File: ${videoFileName}\n🍿 *MFlix Hybrid Downloader*`,
-                        mimetype: 'video/mp4'
+                        document: { url: `./${videoFileName}` }, 
+                        fileName: videoFileName, 
+                        mimetype: 'video/x-matroska', // හෝ 'application/octet-stream'
+                        caption: `✅ ඔයා ඉල්ලපු වීඩියෝව මෙන්න!\n\n📂 *File Name:* ${videoFileName}\n🍿 *MFlix Hybrid Downloader*`
                     });
-                    console.log("✅ Video Sent Successfully!");
+
+                    console.log("✅ Document Sent Successfully!");
                     
                     // යැවූ පසු ෆයිල් එක මකා දැමීම
                     fs.unlinkSync(videoFileName);
@@ -67,7 +71,7 @@ async function startBot() {
                     console.log("🎬 Task Finished. Shutting down...");
                     setTimeout(() => process.exit(0), 5000);
                 } catch (err) {
-                    console.error("❌ Error sending video:", err.message);
+                    console.error("❌ Error sending document:", err.message);
                     process.exit(1);
                 }
             } else {
@@ -75,7 +79,7 @@ async function startBot() {
                 process.exit(1);
             }
         } else {
-            console.log("ℹ️ No pending video to send (Normal Bot Mode).");
+            console.log("ℹ️ No pending video to send.");
         }
     }
 
@@ -85,8 +89,6 @@ async function startBot() {
         
         if (connection === 'close') {
             const statusCode = lastDisconnect.error?.output?.statusCode;
-            console.log(`❌ Connection Closed. Status: ${statusCode}`);
-
             if (statusCode !== 405 && statusCode !== 401 && statusCode !== DisconnectReason.loggedOut) {
                 console.log('🔄 Reconnecting...');
                 startBot();
@@ -95,16 +97,12 @@ async function startBot() {
             }
         } else if (connection === 'open') {
             console.log('✅ Bot is Online and Ready!');
-            
-            // Connection එක ස්ථාවර වීමට තත්පර 5ක් ඉන්න
             await delay(5000);
-            
-            // Python එකෙන් බාපු වීඩියෝවක් ඇත්නම් එය යැවීම අරඹන්න
             await sendDownloadedVideo(sock);
         }
     });
 
-    // --- 4. සාමාන්‍ය Commands (.tv වැනි) ---
+    // --- 4. Commands (.tv) ---
     sock.ev.on('messages.upsert', async (m) => {
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
