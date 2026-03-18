@@ -57,7 +57,7 @@ async function startBot() {
 
             // ⚠️ ඔයාගේ Google Script URL එකේ අන්තිම ටික (ID එක) විතරක් මෙතනට දාන්න
             // උදා: AKfycbzc3r7kkyAH6QhFLQyiEuI9ZAoAJuOJ9mkGDzgE8VmMHwkTcmdvguMsxDl3ThghmFC1
-            const scriptId = "AKfycbyx810dTnq2LZOJIHP2CX9OqGYqXGLYxZDP_PLl-zsZMz6Kz17aPeSe_7fYHdc2iCpV";
+            const scriptId = "AKfycby2MnKbKH0etBMQReKGrm0vYgSANOibPiKgMuCeM0PUuTA0KNFNn625Bved9pqyWxQ8";
             
             const data = JSON.stringify({ fileId: fileId, userJid: from });
 
