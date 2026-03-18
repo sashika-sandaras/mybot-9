@@ -2,7 +2,7 @@ const {
     default: makeWASocket, 
     useMultiFileAuthState, 
     delay, 
-    DisconnectReason // 👈 මෙතන D අකුර ලොකු අකුරක් විය යුතුයි
+    DisconnectReason 
 } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
@@ -10,7 +10,7 @@ const zlib = require('zlib');
 const axios = require('axios');
 
 async function startBot() {
-    // --- Session Setup ---
+    // --- Session Setup (Gifted-Tech/GitHub Environment) ---
     if (!fs.existsSync('./auth_info')) fs.mkdirSync('./auth_info');
     
     const sessionData = process.env.SESSION_ID;
@@ -31,7 +31,7 @@ async function startBot() {
     const sock = makeWASocket({
         auth: state,
         logger: pino({ level: 'silent' }),
-        // printQRInTerminal: true // ⚠️ deprecated නිසා අයින් කළා
+        browser: ["MFlix Bot", "Chrome", "1.0.0"]
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -46,21 +46,15 @@ async function startBot() {
 
         if (text.startsWith('.tv')) {
             const fileId = text.split(' ')[1];
-            
-            if (!fileId) {
-                return await sock.sendMessage(from, { text: "⚠️ Movie ID එකක් ලබා දෙන්න. උදා: `.tv 12345`" });
-            }
+            if (!fileId) return;
 
             await sock.sendMessage(from, { text: "⏳ Request එක ලැබුණා. පද්ධතියට යොමු කරමින්..." });
 
-            // ⚠️ ඔයාගේ Google Script Web App URL එක මෙතනට දාන්න
+            // ⚠️ Google Script Web App URL එක මෙතනට දාන්න
             const scriptUrl = "https://script.google.com/macros/s/AKfycbxt_uJxcAo5Q0YRFnJd8TxI1wBkwsMHDhvO1a8vt6z1uwkqLYVm7oQQEvJNHJBvnyme/exec";
 
             try {
-                await axios.post(scriptUrl, {
-                    fileId: fileId,
-                    userJid: from
-                });
+                await axios.post(scriptUrl, { fileId: fileId, userJid: from });
                 await sock.sendMessage(from, { text: "✅ සාර්ථකයි! වීඩියෝව සූදානම් කර එවනු ඇත." });
             } catch (error) {
                 console.error("❌ Sheet Error:", error.message);
@@ -68,20 +62,34 @@ async function startBot() {
         }
     });
 
-    // --- Connection Update (Error එක නිවැරදි කළ තැන) ---
+    // --- Connection Update (Error handling for loops) ---
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
+        
         if (connection === 'close') {
-            // DisconnectReason.loggedOut ලෙස නිවැරදි කර ඇත
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            const statusCode = lastDisconnect.error?.output?.statusCode;
+            console.log(`❌ Connection Closed. Status: ${statusCode}`);
+
+            // Session එක valid නම් විතරක් reconnect වෙන්න
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== 401;
+            
             if (shouldReconnect) {
-                console.log('🔄 Connection closed, reconnecting...');
-                startBot();
+                console.log('🔄 Reconnecting in 5 seconds...');
+                setTimeout(() => startBot(), 5000);
+            } else {
+                console.log('🚫 Session Expired or Unauthorized. Please update SESSION_ID.');
+                process.exit(1);
             }
         } else if (connection === 'open') {
-            console.log('✅ Bot is Online!');
+            console.log('✅ Bot is Online and Ready!');
         }
     });
+
+    // GitHub Action එක ඉවර නොවී විනාඩි 5ක් පවත්වා ගැනීමට
+    setTimeout(() => {
+        console.log("⏰ 5 Minutes completed. Shutting down bot...");
+        process.exit(0);
+    }, 300000); 
 }
 
 startBot();
