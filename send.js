@@ -41,41 +41,51 @@ async function startBot() {
 
                 let finalFile = "";
 
+                // --- Download Logic ---
                 if (fileId.includes("github.com") || fileId.includes("githubusercontent.com")) {
                     let rawUrl = fileId.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/");
-                    finalFile = rawUrl.split('/').pop();
+                    finalFile = decodeURIComponent(rawUrl.split('/').pop().split('?')[0]);
                     execSync(`curl -L "${rawUrl}" -o "${finalFile}"`);
                 } 
                 else {
-                    execSync(`gdown --fuzzy https://drive.google.com/uc?id=${fileId}`);
+                    // Google Drive Download
+                    execSync(`gdown --fuzzy "https://drive.google.com/uc?id=${fileId}"`);
+                    
                     const files = fs.readdirSync('.');
+                    // README.md ඇතුළු අනවශ්‍ය දේවල් අත්හැරීම ✅
+                    const ignoreList = [
+                        'README.md', 'send.js', 'package.json', 'package-lock.json', 
+                        'node_modules', 'auth_info', '.github', '.git', 'LICENSE'
+                    ];
+
                     finalFile = files.find(f => 
-                        !['send.js', 'package.json', 'package-lock.json', 'node_modules', 'auth_info', '.github'].includes(f) && 
-                        !fs.lstatSync(f).isDirectory()
+                        !ignoreList.includes(f) && 
+                        !fs.lstatSync(f).isDirectory() &&
+                        (f.endsWith('.mkv') || f.endsWith('.mp4') || f.endsWith('.srt') || f.endsWith('.vtt') || f.endsWith('.zip'))
                     );
                 }
 
                 if (!finalFile || !fs.existsSync(finalFile)) throw new Error("DL_FAILED");
 
+                console.log("📤 Selected File: " + finalFile);
                 await sock.sendMessage(userJid, { text: "📤 *Upload වෙමින් පවතී...*" });
 
                 const ext = path.extname(finalFile).toLowerCase();
                 const isSub = ['.srt', '.vtt', '.ass'].includes(ext);
-                
                 let mainStatus = isSub ? "Subtitles Upload Successfully..." : "Video Upload Successfully...";
                 
-                // --- ඔයා ඉල්ලපු විදිහට Caption එක මෙතනදී හැදෙනවා ---
                 let finalCaption = `💚 *${mainStatus}*\n\n` +
-                                   `📦 *File :* ${finalFile}\n\n` +
+                                   `📦 *File :* \`${finalFile}\`\n\n` +
                                    `🏷️ *Mflix WhDownloader*\n` +
                                    `💌 *Made With Sashika Sandras*\n\n` +
                                    `☺️ *Mflix භාවිතා කළ ඔබට සුභ දවසක්...*\n` +
                                    `*කරුණාකර Report කිරීමෙන් වළකින්න...* 💝`;
 
+                // Uploading as Document
                 await sock.sendMessage(userJid, {
-                    document: { url: `./${finalFile}` },
+                    document: fs.readFileSync(`./${finalFile}`),
                     fileName: finalFile,
-                    mimetype: "application/octet-stream", 
+                    mimetype: isSub ? "text/vtt" : "video/x-matroska", // MKV සඳහා ගැලපෙන MimeType
                     caption: finalCaption
                 });
 
@@ -85,7 +95,7 @@ async function startBot() {
 
             } catch (err) {
                 console.error(err);
-                await sock.sendMessage(userJid, { text: "❌ *වීඩියෝ හෝ Subtitles ගොනුවේ දෝෂයක්...*" });
+                await sock.sendMessage(userJid, { text: "❌ *බාගත කිරීමේදී හෝ යැවීමේදී දෝෂයක් සිදු විය...*" });
                 process.exit(1);
             }
         }
