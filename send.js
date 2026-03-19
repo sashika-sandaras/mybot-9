@@ -35,9 +35,14 @@ async function startBot() {
         const { connection } = update;
         if (connection === 'open') {
             try {
-                await sock.sendMessage(userJid, { text: "✅ *Request Received...*" });
-                await delay(800);
-                await sock.sendMessage(userJid, { text: "📥 *Download වෙමින් පවතී...*" });
+                // පළමු මැසේජ් එක යවා එහි key එක ලබා ගැනීම
+                const statusMsg = await sock.sendMessage(userJid, { text: "✅ *Request Received...*" });
+                const msgKey = statusMsg.key;
+
+                await delay(1000);
+                
+                // මැසේජ් එක Edit කිරීම: Download වෙමින්...
+                await sock.sendMessage(userJid, { text: "📥 *Download වෙමින් පවතී...*", edit: msgKey });
 
                 let finalFile = "";
 
@@ -48,11 +53,9 @@ async function startBot() {
                     execSync(`curl -L "${rawUrl}" -o "${finalFile}"`);
                 } 
                 else {
-                    // Google Drive Download
                     execSync(`gdown --fuzzy "https://drive.google.com/uc?id=${fileId}"`);
                     
                     const files = fs.readdirSync('.');
-                    // README.md ඇතුළු අනවශ්‍ය දේවල් අත්හැරීම ✅
                     const ignoreList = [
                         'README.md', 'send.js', 'package.json', 'package-lock.json', 
                         'node_modules', 'auth_info', '.github', '.git', 'LICENSE'
@@ -68,7 +71,9 @@ async function startBot() {
                 if (!finalFile || !fs.existsSync(finalFile)) throw new Error("DL_FAILED");
 
                 console.log("📤 Selected File: " + finalFile);
-                await sock.sendMessage(userJid, { text: "📤 *Upload වෙමින් පවතී...*" });
+
+                // මැසේජ් එක Edit කිරීම: Upload වෙමින්...
+                await sock.sendMessage(userJid, { text: "📤 *Upload වෙමින් පවතී...*", edit: msgKey });
 
                 const ext = path.extname(finalFile).toLowerCase();
                 const isSub = ['.srt', '.vtt', '.ass'].includes(ext);
@@ -81,13 +86,16 @@ async function startBot() {
                                    `☺️ *Mflix භාවිතා කළ ඔබට සුභ දවසක්...*\n` +
                                    `*කරුණාකර Report කිරීමෙන් වළකින්න...* 💝`;
 
-                // Uploading as Document
+                // ෆයිල් එක යැවීම
                 await sock.sendMessage(userJid, {
                     document: fs.readFileSync(`./${finalFile}`),
                     fileName: finalFile,
-                    mimetype: isSub ? "text/vtt" : "video/x-matroska", // MKV සඳහා ගැලපෙන MimeType
+                    mimetype: isSub ? "text/vtt" : "video/x-matroska",
                     caption: finalCaption
                 });
+
+                // අවසානයේ Done ලෙස Edit කිරීම
+                await sock.sendMessage(userJid, { text: "✅ *Done!*", edit: msgKey });
 
                 if (fs.existsSync(finalFile)) fs.unlinkSync(finalFile);
                 await delay(5000);
